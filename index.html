@@ -588,21 +588,7 @@ function subscribeRealtime(){
     })
     .subscribe();
 
-  // Lineas realtime - reload when new Excel imported
-  sb.channel('lineas-realtime')
-    .on('postgres_changes',{event:'DELETE',schema:'public',table:'lineas'},async ()=>{
-      // Someone started importing - wait for inserts to complete
-    })
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'lineas'},async ()=>{
-      if(window._importing) return; // Skip if we are the one importing
-      clearTimeout(window._reloadTimer);
-      window._reloadTimer=setTimeout(async ()=>{
-        if(window._importing) return;
-        showToast('📡 Nuevo Excel importado — actualizando...');
-        await dbLoadAll();
-      }, 8000); // Wait 8 seconds for all rows to upload
-    })
-    .subscribe();
+  // Lineas: no realtime - manual import only to avoid conflicts
 
   // Config realtime
   sb.channel('config-realtime')
@@ -687,10 +673,7 @@ function handleFile(input){
       updateUI(meta);
       showToast('✓ Excel importado: '+rows.length.toLocaleString()+' líneas'+(nNew>0?' · '+nNew+' estados nuevos':''));
       input.value='';
-      // Keep flag for 10 seconds to let realtime settle
-      setTimeout(()=>{ window._importing=false; }, 10000);
     }catch(err){
-      window._importing=false;
       alert('Error al abrir el archivo.\n'+err.message);
     }
   };
