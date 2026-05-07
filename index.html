@@ -1017,7 +1017,20 @@ function exportInformeXLSX(){
   const gC={};mias.forEach(r=>{const g=myNotes[r._id];const k=(g&&g.estado)?g.estado:'Sin gestionar';gC[k]=(gC[k]||0)+1;});
   const sorted2=Object.entries(gC).sort((a,b)=>b[1]-a[1]);
   const wb=XLSX.utils.book_new();
-  const ws1=XLSX.utils.aoa_to_sheet([['INFORME DE GESTIÓN — '+today()],[],['ESTADO DEL PROCESO — TODAS LAS LÍNEAS'],['Estado del proceso','Líneas','%','Responsable'],...sorted1.map(([k,v])=>[k,v,pct(v,allRows.length)+'%',getResp(k)]),['Total general',allRows.length,'',''],[],'GESTIÓN PROPIA — MIS LÍNEAS',['Estado de gestión','Líneas','% mis líneas','% total'],...sorted2.map(([k,v])=>[k,v,pct(v,mias.length)+'%',pct(v,allRows.length)+'%']),['Total mis líneas',mias.length,pct(mias.length,allRows.length)+'%','']]);
+  const ws1Data=[
+    ['INFORME DE GESTIÓN — '+today()],
+    [],
+    ['ESTADO DEL PROCESO — TODAS LAS LÍNEAS'],
+    ['Estado del proceso','Líneas','%','Responsable'],
+    ...sorted1.map(([k,v])=>[k,v,pct(v,allRows.length)+'%',getResp(k)]),
+    ['Total general',allRows.length,'',''],
+    [],
+    ['GESTIÓN PROPIA — MIS LÍNEAS'],
+    ['Estado de gestión','Líneas','% mis líneas','% total'],
+    ...sorted2.map(([k,v])=>[k,v,pct(v,mias.length)+'%',pct(v,allRows.length)+'%']),
+    ['Total mis líneas',mias.length,pct(mias.length,allRows.length)+'%','']
+  ];
+  const ws1=XLSX.utils.aoa_to_sheet(ws1Data);
   ws1['!cols']=[{wch:40},{wch:10},{wch:10},{wch:22}];
   XLSX.utils.book_append_sheet(wb,ws1,'Informe');
   const ws2=XLSX.utils.aoa_to_sheet([['MIS GESTIONES — DETALLE'],['Nombre','DNI','Teléfono','Estado Mediapost','Mi gestión','Notas','Fecha gestión'],...mias.map(r=>{const g=myNotes[r._id]||{};return [r.nombre,r.dni,r.tel,lbl(r.estado_mp),g.estado||'',g.notas||'',g.ts?new Date(g.ts).toLocaleDateString('es-ES'):''];})]);
