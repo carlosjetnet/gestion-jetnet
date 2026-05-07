@@ -201,9 +201,11 @@
   <div class="header-actions">
     <button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ Configurar</button>
     <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Exportar CSV</button>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('restoreInput').click()">↩ Restaurar backup</button>
     <button class="btn btn-white" onclick="document.getElementById('fileInput').click()">+ Importar Excel del día</button>
     <button class="btn btn-ghost btn-sm" onclick="doLogout()">Salir</button>
     <input type="file" id="fileInput" accept=".xlsx" style="display:none" onchange="handleFile(this)">
+    <input type="file" id="restoreInput" accept=".json" style="display:none" onchange="restoreBackup(this)">
   </div>
 </div>
 
@@ -924,6 +926,58 @@ async function saveSettings(){
 document.getElementById('settingsModal').addEventListener('click',e=>{if(e.target.id==='settingsModal')closeSettings();});
 
 // ── EXPORT ────────────────────────────────────────────────────────
+async function restoreBackup(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      const raw=e.target.result.trim();
+      let d;
+      try{d=JSON.parse(raw);}catch(e2){throw new Error('No es un JSON válido');}
+      let notes={};
+      if(d.notes && typeof d.notes==='object') notes=d.notes;
+      else if(typeof d==='object'&&!Array.isArray(d)) notes=d;
+      else throw new Error('Formato no reconocido');
+      // Migrate old estado names
+      const migrations={'Mandado correo':'Mandado Correos'};
+      Object.values(notes).forEach(n=>{if(n.estado&&migrations[n.estado])n.estado=migrations[n.estado];});
+      // Restore cfg if present
+      if(d.cfg){
+        cfg=d.cfg;
+        if(!cfg.g) cfg.g=[...DEF_G];
+        DEF_G.forEach(s=>{if(!cfg.g.includes(s))cfg.g.push(s);});
+        if(!cfg.grupos) cfg.grupos={...DEF_GRUPOS};
+        Object.keys(DEF_GRUPOS).forEach(k=>{if(!cfg.grupos[k])cfg.grupos[k]=DEF_GRUPOS[k];});
+        await dbSaveCfg();
+      }
+      // Upload all notes to Supabase
+      const entries=Object.entries(notes);
+      if(!entries.length){alert('El backup no tiene gestiones guardadas.');return;}
+      showSync('Restaurando '+entries.length+' gestiones en la nube...');
+      const batch=entries.map(([id,g])=>({
+        id, estado:g.estado||'', notas:g.notas||'',
+        ts:g.ts||new Date().toISOString(),
+        updated_by:currentUser, updated_at:new Date().toISOString()
+      }));
+      // Upload in chunks of 100
+      for(let i=0;i<batch.length;i+=100){
+        await sb.from('gestiones').upsert(batch.slice(i,i+100));
+      }
+      // Update local myNotes
+      entries.forEach(([id,g])=>{myNotes[id]={estado:g.estado||'',notas:g.notas||'',ts:g.ts||new Date().toISOString(),updated_by:currentUser};});
+      hideSync();
+      if(allRows.length) updateUI();
+      showToast('✓ Backup restaurado: '+entries.length+' gestiones subidas a la nube');
+      alert('✓ Backup restaurado correctamente ('+entries.length+' gestiones).\n\nSi aún no has importado el Excel del día, hazlo ahora para ver tus líneas.');
+    }catch(err){
+      hideSync();
+      alert('Error al restaurar: '+err.message);
+    }
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+
 function exportCSV(){
   if(!allRows.length){alert('No hay datos.');return;}
   const mias=allRows.filter(isMia);
