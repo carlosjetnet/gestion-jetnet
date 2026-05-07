@@ -568,24 +568,48 @@ async function dbSaveLineas(rows, meta){
 
 // ── REALTIME ─────────────────────────────────────────────────────
 function subscribeRealtime(){
-  sb.channel('gestiones-changes')
-    .on('postgres_changes',{event:'*',schema:'public',table:'gestiones'},payload=>{
+  // Gestiones realtime - update individual note without full reload
+  sb.channel('gestiones-realtime')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'gestiones'},payload=>{
       const g=payload.new;
       if(g && g.updated_by !== currentUser){
         myNotes[g.id]={estado:g.estado,notas:g.notas,ts:g.ts,updated_by:g.updated_by};
-        updateUI();
+        if(allRows.length) updateUI();
+        showToast('📡 '+g.updated_by+' gestionó una línea');
+      }
+    })
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'gestiones'},payload=>{
+      const g=payload.new;
+      if(g && g.updated_by !== currentUser){
+        myNotes[g.id]={estado:g.estado,notas:g.notas,ts:g.ts,updated_by:g.updated_by};
+        if(allRows.length) updateUI();
         showToast('📡 '+g.updated_by+' actualizó una gestión');
       }
     })
-    .on('postgres_changes',{event:'*',schema:'public',table:'lineas'},async ()=>{
-      showToast('📡 Nuevo Excel importado — recargando...');
-      await dbLoadAll();
+    .subscribe();
+
+  // Lineas realtime - reload when new Excel imported
+  sb.channel('lineas-realtime')
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'lineas'},async ()=>{
+      // Someone started importing - wait for inserts to complete
     })
-    .on('postgres_changes',{event:'*',schema:'public',table:'config'},async payload=>{
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'lineas'},async ()=>{
+      // Debounce: reload after 3 seconds to let all rows upload
+      clearTimeout(window._reloadTimer);
+      window._reloadTimer=setTimeout(async ()=>{
+        showToast('📡 Nuevo Excel importado — actualizando...');
+        await dbLoadAll();
+      }, 3000);
+    })
+    .subscribe();
+
+  // Config realtime
+  sb.channel('config-realtime')
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'config'},async payload=>{
       if(payload.new?.data){
         cfg=payload.new.data;
         mergeCfgDefaults();
-        updateUI();
+        if(allRows.length) updateUI();
         showToast('📡 Configuración actualizada');
       }
     })
