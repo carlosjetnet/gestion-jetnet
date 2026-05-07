@@ -594,12 +594,13 @@ function subscribeRealtime(){
       // Someone started importing - wait for inserts to complete
     })
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'lineas'},async ()=>{
-      // Debounce: reload after 3 seconds to let all rows upload
+      if(window._importing) return; // Skip if we are the one importing
       clearTimeout(window._reloadTimer);
       window._reloadTimer=setTimeout(async ()=>{
+        if(window._importing) return;
         showToast('📡 Nuevo Excel importado — actualizando...');
         await dbLoadAll();
-      }, 3000);
+      }, 8000); // Wait 8 seconds for all rows to upload
     })
     .subscribe();
 
@@ -686,7 +687,12 @@ function handleFile(input){
       updateUI(meta);
       showToast('✓ Excel importado: '+rows.length.toLocaleString()+' líneas'+(nNew>0?' · '+nNew+' estados nuevos':''));
       input.value='';
-    }catch(err){alert('Error al abrir el archivo.\n'+err.message);}
+      // Keep flag for 10 seconds to let realtime settle
+      setTimeout(()=>{ window._importing=false; }, 10000);
+    }catch(err){
+      window._importing=false;
+      alert('Error al abrir el archivo.\n'+err.message);
+    }
   };
   reader.readAsArrayBuffer(file);
 }
