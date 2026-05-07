@@ -885,7 +885,8 @@ function renderInforme(){
 function renderChart(cid,labels,data,inst,setI){
   if(inst)inst.destroy();
   const ctx=document.getElementById(cid).getContext('2d');
-  setI(new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:CHART_COLORS.slice(0,labels.length),borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{font:{size:11,family:"'DM Sans',sans-serif"},boxWidth:12,padding:8}},tooltip:{callbacks:{label:c=>{const t=c.dataset.data.reduce((a,b)=>a+b,0);return ` ${c.label}: ${c.raw.toLocaleString()} (${Math.round(c.raw/t*100)}%)`;}}}}},cutout:'60%'}}));
+  const tooltipFn=function(c){const t=c.dataset.data.reduce(function(a,b){return a+b;},0);return ' '+c.label+': '+c.raw.toLocaleString()+' ('+Math.round(c.raw/t*100)+'%)';};
+  setI(new Chart(ctx,{type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:CHART_COLORS.slice(0,labels.length),borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{font:{size:11,family:"'DM Sans',sans-serif"},boxWidth:12,padding:8}},tooltip:{callbacks:{label:tooltipFn}}},cutout:'60%'}}));
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────────
