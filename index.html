@@ -886,7 +886,22 @@ function changeLineasPage(d){lineasPage=Math.max(0,Math.min(lineasPage+d,Math.ce
 function renderInforme(){
   const aC={};allRows.forEach(r=>{const l=lbl(r.estado_mp);aC[l]=(aC[l]||0)+1;});
   const sorted1=Object.entries(aC).sort((a,b)=>b[1]-a[1]);const total1=allRows.length;
-  function getResp(estadoLabel){const rawKey=Object.keys(LABELS).find(k=>LABELS[k]===estadoLabel)||estadoLabel;if(!cfg.mpOwners)return '—';const owner=cfg.mpOwners[rawKey]||cfg.mpOwners[estadoLabel];return owner==='propia'?'Gestión propia':owner==='ellos'?'Mediapost':'—';}
+  function getResp(estadoLabel){
+    if(!cfg.mpOwners) return '—';
+    // Try label -> raw key lookup
+    const rawKey=Object.keys(LABELS).find(k=>LABELS[k]===estadoLabel)||estadoLabel;
+    // Try all possible matches
+    const owner=cfg.mpOwners[rawKey]
+      ||cfg.mpOwners[estadoLabel]
+      ||cfg.mpOwners['MEDIAPOST: '+estadoLabel.toUpperCase()]
+      ||cfg.mpOwners['JETNET: '+estadoLabel.toUpperCase()];
+    if(owner==='propia') return 'Gestión propia';
+    if(owner==='ellos') return 'Mediapost';
+    // Last resort: check if label matches any owner key partially
+    const matchKey=Object.keys(cfg.mpOwners).find(k=>lbl(k)===estadoLabel||k.toUpperCase().includes(estadoLabel.toUpperCase()));
+    if(matchKey) return cfg.mpOwners[matchKey]==='propia'?'Gestión propia':'Mediapost';
+    return '—';
+  }
   document.getElementById('rpt1-tbody').innerHTML=sorted1.map(([estado,cnt])=>{const p=pct(cnt,total1);const resp=getResp(estado);const rc=resp==='Gestión propia'?'color:var(--purple);font-weight:500':resp==='Mediapost'?'color:var(--blue)':'';return `<tr><td>${estado}</td><td class="num">${cnt.toLocaleString()}</td><td class="pct">${p}%</td><td class="num" style="text-align:left;${rc}">${resp}</td></tr>`;}).join('');
   document.getElementById('rpt1-tfoot').innerHTML=`<tr><td>Total general</td><td class="num">${total1.toLocaleString()}</td><td class="pct"></td><td></td></tr>`;
   const mias=allRows.filter(isMia);const gC={};
@@ -1002,7 +1017,19 @@ function exportInformeXLSX(){
   const mias=allRows.filter(isMia);
   const aC={};allRows.forEach(r=>{const l=lbl(r.estado_mp);aC[l]=(aC[l]||0)+1;});
   const sorted1=Object.entries(aC).sort((a,b)=>b[1]-a[1]);
-  function getResp(estadoLabel){const rawKey=Object.keys(LABELS).find(k=>LABELS[k]===estadoLabel)||estadoLabel;if(!cfg.mpOwners)return '';const owner=cfg.mpOwners[rawKey]||cfg.mpOwners[estadoLabel];return owner==='propia'?'Gestión propia':owner==='ellos'?'Mediapost':'';}
+  function getResp(estadoLabel){
+    if(!cfg.mpOwners) return '';
+    const rawKey=Object.keys(LABELS).find(k=>LABELS[k]===estadoLabel)||estadoLabel;
+    const owner=cfg.mpOwners[rawKey]
+      ||cfg.mpOwners[estadoLabel]
+      ||cfg.mpOwners['MEDIAPOST: '+estadoLabel.toUpperCase()]
+      ||cfg.mpOwners['JETNET: '+estadoLabel.toUpperCase()];
+    if(owner==='propia') return 'Gestión propia';
+    if(owner==='ellos') return 'Mediapost';
+    const matchKey=Object.keys(cfg.mpOwners).find(k=>lbl(k)===estadoLabel||k.toUpperCase().includes(estadoLabel.toUpperCase()));
+    if(matchKey) return cfg.mpOwners[matchKey]==='propia'?'Gestión propia':'Mediapost';
+    return '';
+  }
   const gC={};mias.forEach(r=>{const g=myNotes[r._id];const k=(g&&g.estado)?g.estado:'Sin gestionar';gC[k]=(gC[k]||0)+1;});
   const sorted2=Object.entries(gC).sort((a,b)=>b[1]-a[1]);
   const wb=XLSX.utils.book_new();
