@@ -559,6 +559,8 @@ function buildHeaderActions(){
   if(isAdmin()){
     html+=`<button class="btn btn-ghost btn-sm" onclick="document.getElementById('restoreInput').click()">↩ Restaurar</button>`;
     html+=`<button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ Configurar</button>`;
+  }
+  if(canWrite()){
     html+=`<button class="btn btn-white" onclick="document.getElementById('fileInput').click()">+ Importar Excel</button>`;
   }
   html+=`<button class="btn btn-ghost btn-sm" onclick="doLogout()">Salir</button>`;
@@ -687,7 +689,7 @@ function getAlert(g){
 
 // ── IMPORT ────────────────────────────────────────────────────────
 function handleFile(input){
-  if(!isAdmin()){alert('Solo el administrador puede importar el Excel.');return;}
+  if(!canWrite()){alert('No tienes permisos para importar.');return;}
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=async function(e){
