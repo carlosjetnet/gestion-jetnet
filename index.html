@@ -1171,8 +1171,15 @@ async function restoreBackup(input){
   reader.readAsText(file);
 }
 
-function exportInformeXLSX(){
+async function exportInformeXLSX(){
   if(!isAdmin()){alert('Solo el administrador puede exportar.');return;}
+  // Load historico if not loaded yet
+  if(!historico.length){
+    showSync('Cargando histórico...');
+    const {data}=await sb.from('historico').select('*').order('created_at',{ascending:false}).limit(5000);
+    historico=data||[];
+    hideSync();
+  }
   const mias=allRows.filter(isMia);
   const aC={};allRows.forEach(r=>{const l=lbl(r.estado_mp);aC[l]=(aC[l]||0)+1;});
   const sorted1=Object.entries(aC).sort((a,b)=>b[1]-a[1]);
