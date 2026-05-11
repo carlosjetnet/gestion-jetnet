@@ -1187,7 +1187,19 @@ async function exportInformeXLSX(){
   const sorted2=Object.entries(gC).sort((a,b)=>b[1]-a[1]);
   const wb=XLSX.utils.book_new();
   // Hoja 1: Resumen
-  const ws1Data=[['INFORME DE GESTIÓN — '+today()],[],['ESTADO DEL PROCESO — TODAS LAS LÍNEAS'],['Estado del proceso','Líneas','%','Responsable'],...sorted1.map(([k,v])=>[k,v,pct(v,allRows.length)+'%',getResp(k)]),['Total general',allRows.length,'',''],[],'GESTIÓN PROPIA — MIS LÍNEAS',['Estado de gestión','Líneas','% mis líneas','% total'],...sorted2.map(([k,v])=>[k,v,pct(v,mias.length)+'%',pct(v,allRows.length)+'%']),['Total mis líneas',mias.length,pct(mias.length,allRows.length)+'%','']];
+  const ws1Data=[
+    ['INFORME DE GESTIÓN — '+today()],
+    [],
+    ['ESTADO DEL PROCESO — TODAS LAS LÍNEAS'],
+    ['Estado del proceso','Líneas','%','Responsable'],
+    ...sorted1.map(([k,v])=>[k,v,pct(v,allRows.length)+'%',getResp(k)]),
+    ['Total general',allRows.length,'',''],
+    [],
+    ['GESTIÓN PROPIA — MIS LÍNEAS'],
+    ['Estado de gestión','Líneas','% mis líneas','% total'],
+    ...sorted2.map(([k,v])=>[k,v,pct(v,mias.length)+'%',pct(v,allRows.length)+'%']),
+    ['Total mis líneas',mias.length,pct(mias.length,allRows.length)+'%','']
+  ];
   const ws1=XLSX.utils.aoa_to_sheet(ws1Data);ws1['!cols']=[{wch:42},{wch:10},{wch:10},{wch:22}];
   XLSX.utils.book_append_sheet(wb,ws1,'Informe');
   // Hoja 2: Datos diarios + columnas de gestión
