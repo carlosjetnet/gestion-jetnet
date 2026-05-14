@@ -618,7 +618,7 @@ async function dbSaveGestion(id,gestion,prevEstado){
   await sb.from('gestiones').upsert({id,estado:gestion.estado,notas:gestion.notas,ts:gestion.ts,updated_by:currentUser,updated_at:new Date().toISOString()});
   // Save to historico
   const r=allRows.find(x=>x._id===id);
-  await sb.from('historico').insert({linea_id:id,dni:r?.dni||'',nombre:r?.nombre||'',estado_anterior:prevEstado||'',estado_nuevo:gestion.estado||'',notas:gestion.notas||'',usuario:currentUser,created_at:new Date().toISOString()});
+  await sb.from('historico').insert({linea_id:id,dni:r?.dni||'',nombre:r?.nombre||'',tel:r?.tel||'',estado_anterior:prevEstado||'',estado_nuevo:gestion.estado||'',notas:gestion.notas||'',usuario:currentUser,created_at:new Date().toISOString()});
   hideSync();
 }
 
@@ -1021,14 +1021,14 @@ function renderActividad(){
   // Recent timeline
   const recent=filtered.slice(0,50).map(h=>{
     const fecha=new Date(h.created_at).toLocaleString('es-ES');
-    return '<tr><td class="dni-cell">'+fecha+'</td><td>'+h.usuario+'</td><td class="dni-cell">'+(h.dni||'—')+'</td><td>'+h.nombre+'</td><td style="color:var(--text3)">'+(h.estado_anterior||'—')+'</td><td>'+badgeGtext(h.estado_nuevo)+'</td><td style="color:var(--text2);font-size:12px">'+(h.notas||'')+'</td></tr>';
+    return '<tr><td class="dni-cell">'+fecha+'</td><td>'+h.usuario+'</td><td class="dni-cell">'+(h.dni||'—')+'</td><td class="dni-cell">'+(h.tel||'—')+'</td><td>'+h.nombre+'</td><td style="color:var(--text3)">'+(h.estado_anterior||'—')+'</td><td>'+badgeGtext(h.estado_nuevo)+'</td><td style="color:var(--text2);font-size:12px">'+(h.notas||'')+'</td></tr>';
   }).join('');
   document.getElementById('act-content').innerHTML=
     '<div class="act-section"><h3>Resumen por usuario</h3>'+html+'</div>'+
     '<div class="report-panel"><h3>Últimas gestiones (cronológico)</h3>'+
     '<div style="overflow-x:auto;"><table class="rpt-table"><thead><tr>'+
-    '<th style="width:16%">Fecha y hora</th><th style="width:10%">Usuario</th><th style="width:10%">DNI</th>'+
-    '<th style="width:20%">Nombre</th><th style="width:14%">Estado anterior</th><th style="width:14%">Estado nuevo</th><th style="width:16%">Notas</th>'+
+    '<th style="width:15%">Fecha y hora</th><th style="width:9%">Usuario</th><th style="width:9%">DNI</th><th style="width:9%">Teléfono</th>'+
+    '<th style="width:18%">Nombre</th><th style="width:13%">Estado anterior</th><th style="width:13%">Estado nuevo</th><th style="width:14%">Notas</th>'+
     '</tr></thead><tbody>'+recent+'</tbody></table></div></div>';
 }
 function badgeGtext(estado){if(!estado)return '<span style="color:var(--text3)">—</span>';let cls='badge-purple';if(estado==='No contacto')cls='badge-red';else if(estado.includes('Contactado'))cls='badge-green';else if(estado==='Migrado')cls='badge-teal';return '<span class="badge '+cls+'">'+estado+'</span>';}
@@ -1214,8 +1214,8 @@ async function exportInformeXLSX(){
   const ws2=XLSX.utils.aoa_to_sheet(ws2Data);ws2['!cols']=[...headers.map(()=>({wch:18})),{wch:24},{wch:36},{wch:14}];
   XLSX.utils.book_append_sheet(wb,ws2,'Datos diarios');
   // Hoja 3: Histórico cronológico
-  const ws3Data=[['Fecha y hora','Usuario','DNI','Nombre','Estado anterior','Estado nuevo','Notas'],...historico.slice(0,5000).map(h=>[new Date(h.created_at).toLocaleString('es-ES'),h.usuario,h.dni,h.nombre,h.estado_anterior,h.estado_nuevo,h.notas])];
-  const ws3=XLSX.utils.aoa_to_sheet(ws3Data);ws3['!cols']=[{wch:18},{wch:14},{wch:12},{wch:28},{wch:22},{wch:22},{wch:36}];
+  const ws3Data=[['Fecha y hora','Usuario','DNI','Teléfono','Nombre','Estado anterior','Estado nuevo','Notas'],...historico.slice(0,5000).map(h=>[new Date(h.created_at).toLocaleString('es-ES'),h.usuario,h.dni,h.tel||'',h.nombre,h.estado_anterior,h.estado_nuevo,h.notas])];
+  const ws3=XLSX.utils.aoa_to_sheet(ws3Data);ws3['!cols']=[{wch:18},{wch:14},{wch:12},{wch:13},{wch:28},{wch:22},{wch:22},{wch:36}];
   XLSX.utils.book_append_sheet(wb,ws3,'Histórico');
   XLSX.writeFile(wb,'informe_'+today()+'.xlsx');showToast('✓ Excel exportado (3 hojas)');
 }
