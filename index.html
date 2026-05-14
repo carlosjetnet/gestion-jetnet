@@ -618,7 +618,7 @@ async function dbSaveGestion(id,gestion,prevEstado){
   await sb.from('gestiones').upsert({id,estado:gestion.estado,notas:gestion.notas,ts:gestion.ts,updated_by:currentUser,updated_at:new Date().toISOString()});
   // Save to historico
   const r=allRows.find(x=>x._id===id);
-  await sb.from('historico').insert({linea_id:id,dni:r?.dni||'',nombre:r?.nombre||'',tel:r?.tel||'',estado_anterior:prevEstado||'',estado_nuevo:gestion.estado||'',notas:gestion.notas||'',usuario:currentUser,created_at:new Date().toISOString()});
+  await sb.from('historico').insert({linea_id:id,dni:r?.dni||'',nombre:r?.nombre||'',tel:r?.id_unico||r?.tel||'',estado_anterior:prevEstado||'',estado_nuevo:gestion.estado||'',notas:gestion.notas||'',usuario:currentUser,created_at:new Date().toISOString()});
   hideSync();
 }
 
@@ -1027,7 +1027,7 @@ function renderActividad(){
     '<div class="act-section"><h3>Resumen por usuario</h3>'+html+'</div>'+
     '<div class="report-panel"><h3>Últimas gestiones (cronológico)</h3>'+
     '<div style="overflow-x:auto;"><table class="rpt-table"><thead><tr>'+
-    '<th style="width:15%">Fecha y hora</th><th style="width:9%">Usuario</th><th style="width:9%">DNI</th><th style="width:9%">Teléfono</th>'+
+    '<th style="width:15%">Fecha y hora</th><th style="width:9%">Usuario</th><th style="width:9%">DNI</th><th style="width:9%">ID único</th>'+
     '<th style="width:18%">Nombre</th><th style="width:13%">Estado anterior</th><th style="width:13%">Estado nuevo</th><th style="width:14%">Notas</th>'+
     '</tr></thead><tbody>'+recent+'</tbody></table></div></div>';
 }
@@ -1214,7 +1214,7 @@ async function exportInformeXLSX(){
   const ws2=XLSX.utils.aoa_to_sheet(ws2Data);ws2['!cols']=[...headers.map(()=>({wch:18})),{wch:24},{wch:36},{wch:14}];
   XLSX.utils.book_append_sheet(wb,ws2,'Datos diarios');
   // Hoja 3: Histórico cronológico
-  const ws3Data=[['Fecha y hora','Usuario','DNI','Teléfono','Nombre','Estado anterior','Estado nuevo','Notas'],...historico.slice(0,5000).map(h=>[new Date(h.created_at).toLocaleString('es-ES'),h.usuario,h.dni,h.tel||'',h.nombre,h.estado_anterior,h.estado_nuevo,h.notas])];
+  const ws3Data=[['Fecha y hora','Usuario','DNI','ID único','Nombre','Estado anterior','Estado nuevo','Notas'],...historico.slice(0,5000).map(h=>[new Date(h.created_at).toLocaleString('es-ES'),h.usuario,h.dni,h.tel||'',h.nombre,h.estado_anterior,h.estado_nuevo,h.notas])];
   const ws3=XLSX.utils.aoa_to_sheet(ws3Data);ws3['!cols']=[{wch:18},{wch:14},{wch:12},{wch:13},{wch:28},{wch:22},{wch:22},{wch:36}];
   XLSX.utils.book_append_sheet(wb,ws3,'Histórico');
   XLSX.writeFile(wb,'informe_'+today()+'.xlsx');showToast('✓ Excel exportado (3 hojas)');
