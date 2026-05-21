@@ -712,10 +712,13 @@ function handleFile(input){
       const rows=[];
       for(let i=hr+1;i<raw.length;i++){
         const r=raw[i];if(!r||r.every(c=>!c))continue;
+        // svRaw lee la celda directamente del sheet para evitar pérdida de precisión en números largos
+        const svRaw=k=>{const ci=heads.indexOf(k);if(ci<0)return '';const cell=ws[XLSX.utils.encode_cell({r:i,c:ci})];if(!cell)return '';return(cell.w||String(cell.v||'')).replace(/\s/g,'').trim();};
         const o={};heads.forEach((h,idx)=>{o[h]=String(r[idx]||'').trim();});
         window._rawRows.push({...o});
         const sv=k=>o[k]!=null&&o[k]!==''?String(o[k]).trim():'';
-        rows.push({_id:sv('identificador_único')||sv('TELÉFONO DE CONTACTO')||String(i),nombre:sv('NOMBRE Y APELLIDOS'),dni:sv('DNI'),tel:sv('TELÉFONO DE CONTACTO'),id_unico:sv('identificador_único'),operador:sv('OPERADOR'),tarifa:sv('TARIFA ACTUAL'),datos:sv('DATOS'),minutos:sv('MINUTOS'),pvp:sv('PVP'),estado_mp:sv('ESTADO DEL PROCESO'),sim:sv('SIM ASIGNADA'),obs_mp:sv('OBSERVACIONES/COMENTARIOS'),provincia:sv('PROVINCIA'),poblacion:sv('POBLACIÓN')});
+        const idUnico=svRaw('identificador_único')||sv('TELÉFONO DE CONTACTO')||String(i);
+        rows.push({_id:idUnico,nombre:sv('NOMBRE Y APELLIDOS'),dni:sv('DNI'),tel:sv('TELÉFONO DE CONTACTO'),id_unico:svRaw('identificador_único'),operador:sv('OPERADOR'),tarifa:sv('TARIFA ACTUAL'),datos:sv('DATOS'),minutos:sv('MINUTOS'),pvp:sv('PVP'),estado_mp:sv('ESTADO DEL PROCESO'),sim:svRaw('SIM ASIGNADA'),obs_mp:sv('OBSERVACIONES/COMENTARIOS'),provincia:sv('PROVINCIA'),poblacion:sv('POBLACIÓN')});
       }
       rows.sort((a,b)=>{const ka=a.dni||'ZZZZZ_'+a.nombre,kb=b.dni||'ZZZZZ_'+b.nombre;return ka.localeCompare(kb);});
       allRows=rows;
