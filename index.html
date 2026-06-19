@@ -591,7 +591,6 @@ function showSync(msg){document.getElementById('sync-msg').textContent=msg;docum
 function hideSync(){document.getElementById('sync-bar').classList.remove('visible');}
 
 async function fetchAllGestiones(){
-  // Supabase limita a 1000 filas por llamada — paginamos hasta traerlo todo
   let all=[], from=0, pageSize=1000;
   while(true){
     const {data,error}=await sb.from('gestiones').select('*').range(from,from+pageSize-1);
@@ -737,13 +736,15 @@ function handleFile(input){
       const rows=[];
       for(let i=hr+1;i<raw.length;i++){
         const r=raw[i];if(!r||r.every(c=>!c))continue;
-        // svRaw lee la celda directamente del sheet para evitar pérdida de precisión en números largos
-        const svRaw=k=>{const ci=heads.indexOf(k);if(ci<0)return '';const cell=ws[XLSX.utils.encode_cell({r:i,c:ci})];if(!cell)return '';return(cell.w||String(cell.v||'')).replace(/\s/g,'').trim();};
+        // svRaw lee la celda directamente para evitar pérdida de precisión en números largos
+        const svRaw=k=>{const ci=heads.indexOf(k);if(ci<0)return '';const cell=ws[XLSX.utils.encode_cell({r:i,c:ci})];if(!cell)return '';return(cell.w||String(cell.v||'')).trim();};
         const o={};heads.forEach((h,idx)=>{o[h]=String(r[idx]||'').trim();});
-        window._rawRows.push({...o});
+        // Para rawRows guardamos el id_unico con precisión
+        const rawEntry={...o};rawEntry['identificador_único']=svRaw('identificador_único');
+        window._rawRows.push(rawEntry);
         const sv=k=>o[k]!=null&&o[k]!==''?String(o[k]).trim():'';
         const idUnico=svRaw('identificador_único')||sv('TELÉFONO DE CONTACTO')||String(i);
-        rows.push({_id:idUnico,nombre:sv('NOMBRE Y APELLIDOS'),dni:sv('DNI'),tel:sv('TELÉFONO DE CONTACTO'),id_unico:svRaw('identificador_único'),operador:sv('OPERADOR'),tarifa:sv('TARIFA ACTUAL'),datos:sv('DATOS'),minutos:sv('MINUTOS'),pvp:sv('PVP'),estado_mp:sv('ESTADO DEL PROCESO'),sim:svRaw('SIM ASIGNADA'),obs_mp:sv('OBSERVACIONES/COMENTARIOS'),provincia:sv('PROVINCIA'),poblacion:sv('POBLACIÓN')});
+        rows.push({_id:idUnico,nombre:sv('NOMBRE Y APELLIDOS'),dni:sv('DNI'),tel:sv('TELÉFONO DE CONTACTO'),id_unico:idUnico,operador:sv('OPERADOR'),tarifa:sv('TARIFA ACTUAL'),datos:sv('DATOS'),minutos:sv('MINUTOS'),pvp:sv('PVP'),estado_mp:sv('ESTADO DEL PROCESO'),sim:svRaw('SIM ASIGNADA'),obs_mp:sv('OBSERVACIONES/COMENTARIOS'),provincia:sv('PROVINCIA'),poblacion:sv('POBLACIÓN')});
       }
       rows.sort((a,b)=>{const ka=a.dni||'ZZZZZ_'+a.nombre,kb=b.dni||'ZZZZZ_'+b.nombre;return ka.localeCompare(kb);});
       allRows=rows;
@@ -1202,6 +1203,7 @@ async function restoreBackup(input){
 
 async function exportInformeXLSX(){
   if(!isAdmin()){alert('Solo el administrador puede exportar.');return;}
+  // Load historico if not loaded yet
   if(!historico.length){
     showSync('Cargando histórico...');
     const {data}=await sb.from('historico').select('*').order('created_at',{ascending:false}).limit(5000);
@@ -1214,8 +1216,7 @@ async function exportInformeXLSX(){
   const gC={};mias.forEach(r=>{const g=myNotes[r._id];const k=(g&&g.estado)?g.estado:'Sin gestionar';gC[k]=(gC[k]||0)+1;});
   const sorted2=Object.entries(gC).sort((a,b)=>b[1]-a[1]);
   const wb=XLSX.utils.book_new();
-
-  // ── HOJA 1: Informe resumen ──────────────────────────────────────
+  // Hoja 1: Resumen
   const ws1Data=[
     ['INFORME DE GESTIÓN — '+today()],
     [],
@@ -1229,31 +1230,21 @@ async function exportInformeXLSX(){
     ...sorted2.map(([k,v])=>[k,v,pct(v,mias.length)+'%',pct(v,allRows.length)+'%']),
     ['Total mis líneas',mias.length,pct(mias.length,allRows.length)+'%','']
   ];
-  const ws1=XLSX.utils.aoa_to_sheet(ws1Data);
-  ws1['!cols']=[{wch:42},{wch:10},{wch:10},{wch:22}];
+  const ws1=XLSX.utils.aoa_to_sheet(ws1Data);ws1['!cols']=[{wch:42},{wch:10},{wch:10},{wch:22}];
   XLSX.utils.book_append_sheet(wb,ws1,'Informe');
 
   // ── HOJA 2: Datos diarios con formato original + columnas gestión ─
   const origHeaders=window._rawHeaders||['NOMBRE Y APELLIDOS','DNI','DIRECCIÓN','POBLACIÓN','CÓDIGO POSTAL','PROVINCIA','TELÉFONO DE CONTACTO','EMAIL','identificador_único','OPERADOR','TARIFA ACTUAL','DATOS','MINUTOS','PVP','TARIFA PROPUESTA','DATOS PROPUESTOS','MINUTOS PROPUESTOS','PVP PROPUESTO','ESTADO DEL PROCESO','TARIFA ASIGNADA','SIM ASIGNADA','DIRECCIÓN DE ENVÍO','POBLACIÓN DE ENVÍO','CÓDIGO POSTAL DE ENVÍO','PROVINCIA DE ENVÍO','FECHA DE ENVÍO','FECHA DE RECEPCIÓN','OBSERVACIONES/COMENTARIOS'];
   const nOrig=origHeaders.length;
-  // Columnas de gestión propia al final
   const gestHeaders=['MI GESTIÓN','NOTAS','GESTIONADO POR'];
-  const allHeaders=[...origHeaders,...gestHeaders];
-
-  // Fila 1: secciones (igual que el original + nueva sección gestión)
-  // Secciones originales: A1:H1 = DATOS DEL CLIENTE, I1:N1 = DATOS DE LA LINEA, O1:R1 = DATOS PARA LA MIGRACIÓN, T1:AB1 = DATOS MEDIAPOST
-  // Cols: 1-8 cliente, 9-14 linea, 15-18 migracion, 19 estado(no section), 20-28 mediapost, 29-31 gestión propia
-  const secRow=new Array(allHeaders.length).fill('');
-  secRow[0]='DATOS DEL CLIENTE';   // A (col 1)
-  secRow[8]='DATOS DE LA LINEA';   // I (col 9)
-  secRow[14]='DATOS PARA LA MIGRACIÓN'; // O (col 15)
-  secRow[19]='DATOS MEDIAPOST';    // T (col 20)
-  secRow[nOrig]='GESTIÓN PROPIA';  // col 29
-
-  const ws2Data=[secRow, allHeaders];
+  const secRow=new Array(nOrig+gestHeaders.length).fill('');
+  secRow[0]='DATOS DEL CLIENTE'; secRow[8]='DATOS DE LA LINEA';
+  secRow[14]='DATOS PARA LA MIGRACIÓN'; secRow[19]='DATOS MEDIAPOST';
+  secRow[nOrig]='GESTIÓN PROPIA';
+  const ws2Data=[secRow,[...origHeaders,...gestHeaders]];
   allRows.forEach(r=>{
     const g=myNotes[r._id]||{};
-    const rawRow=window._rawRows?window._rawRows.find(rw=>rw['identificador_único']===r.id_unico||rw['TELÉFONO DE CONTACTO']===r.tel):null;
+    const rawRow=window._rawRows?window._rawRows.find(rw=>rw['identificador_único']&&rw['identificador_único']===r.id_unico):null;
     const rowData=origHeaders.map(h=>{
       if(rawRow&&rawRow[h]!==undefined)return rawRow[h]||'';
       const map={'NOMBRE Y APELLIDOS':r.nombre,'DNI':r.dni,'TELÉFONO DE CONTACTO':r.tel,'identificador_único':r.id_unico,'ESTADO DEL PROCESO':r.estado_mp,'SIM ASIGNADA':r.sim,'PROVINCIA':r.provincia,'POBLACIÓN':r.poblacion,'OBSERVACIONES/COMENTARIOS':r.obs_mp};
@@ -1261,63 +1252,36 @@ async function exportInformeXLSX(){
     });
     ws2Data.push([...rowData,g.estado||'',g.notas||'',g.updated_by||'']);
   });
-
   const ws2=XLSX.utils.aoa_to_sheet(ws2Data);
-
-  // Anchos de columna (igual que el original + 3 nuevas)
   ws2['!cols']=[
-    {wch:39.6},{wch:12.1},{wch:61.9},{wch:28.3},{wch:14.5},{wch:10.1},{wch:22.4},{wch:19.1}, // A-H cliente
-    {wch:21.3},{wch:15.5},{wch:17.5},{wch:8.6},{wch:13.3},{wch:7.9},                          // I-N linea
-    {wch:19.3},{wch:18.1},{wch:20.1},{wch:14.6},                                              // O-R migracion
-    {wch:47.1},{wch:15.4},{wch:19.9},{wch:23.0},{wch:10.8},{wch:6.9},{wch:18.3},{wch:14.6},{wch:19.4},{wch:68.5}, // S-AB mediapost
-    {wch:22},{wch:40},{wch:16},                                                                // gestión propia
+    {wch:39.6},{wch:12.1},{wch:61.9},{wch:28.3},{wch:14.5},{wch:10.1},{wch:22.4},{wch:19.1},
+    {wch:21.3},{wch:15.5},{wch:17.5},{wch:8.6},{wch:13.3},{wch:7.9},
+    {wch:19.3},{wch:18.1},{wch:20.1},{wch:14.6},
+    {wch:47.1},{wch:15.4},{wch:19.9},{wch:23.0},{wch:10.8},{wch:6.9},{wch:18.3},{wch:14.6},{wch:19.4},{wch:68.5},
+    {wch:22},{wch:40},{wch:16},
   ];
-
-  // Celdas fusionadas fila 1 (secciones) — igual que original + nueva
   ws2['!merges']=[
-    {s:{r:0,c:0},e:{r:0,c:7}},   // A1:H1 DATOS DEL CLIENTE
-    {s:{r:0,c:8},e:{r:0,c:13}},  // I1:N1 DATOS DE LA LINEA
-    {s:{r:0,c:14},e:{r:0,c:17}}, // O1:R1 DATOS PARA LA MIGRACIÓN
-    {s:{r:0,c:19},e:{r:0,c:27}}, // T1:AB1 DATOS MEDIAPOST
-    {s:{r:0,c:nOrig},e:{r:0,c:nOrig+2}}, // AC1:AE1 GESTIÓN PROPIA
+    {s:{r:0,c:0},e:{r:0,c:7}},{s:{r:0,c:8},e:{r:0,c:13}},
+    {s:{r:0,c:14},e:{r:0,c:17}},{s:{r:0,c:19},e:{r:0,c:27}},
+    {s:{r:0,c:nOrig},e:{r:0,c:nOrig+2}},
   ];
-
-  // Estilos con SheetJS Pro no disponible, pero sí podemos usar write con cellStyles si está disponible.
-  // En XLSX community usamos !style via write options — en su lugar añadimos via xml directo en la hoja
-  // Aplicamos estilos mediante la API de XLSX con la función styleCell helper
-  function styleCell(ws,addr,style){
-    if(!ws[addr])ws[addr]={t:'s',v:''};
-    ws[addr].s=style;
-  }
-
-  // Colores de sección: azul FF00B0F0, rojo FFC00000, verde para gestión FF00B050
-  const sBlue ={fill:{fgColor:{rgb:'00B0F0'}},font:{bold:true,color:{rgb:'000000'}},alignment:{horizontal:'center',vertical:'center'}};
-  const sRed  ={fill:{fgColor:{rgb:'C00000'}},font:{bold:true,color:{rgb:'FFFFFF'}},alignment:{horizontal:'center',vertical:'center'}};
+  function styleCell(ws,addr,style){if(!ws[addr])ws[addr]={t:'s',v:''};ws[addr].s=style;}
+  const sBlue={fill:{fgColor:{rgb:'00B0F0'}},font:{bold:true,color:{rgb:'000000'}},alignment:{horizontal:'center',vertical:'center'}};
+  const sRed={fill:{fgColor:{rgb:'C00000'}},font:{bold:true,color:{rgb:'FFFFFF'}},alignment:{horizontal:'center',vertical:'center'}};
   const sGreen={fill:{fgColor:{rgb:'00B050'}},font:{bold:true,color:{rgb:'FFFFFF'}},alignment:{horizontal:'center',vertical:'center'}};
   const sHeader={font:{bold:true},alignment:{vertical:'center'}};
-
-  // Fila 1 secciones
   ['A1','I1','O1'].forEach(a=>styleCell(ws2,a,sBlue));
   styleCell(ws2,'T1',sRed);
   styleCell(ws2,XLSX.utils.encode_cell({r:0,c:nOrig}),sGreen);
-
-  // Fila 2 cabeceras
   origHeaders.forEach((_,i)=>styleCell(ws2,XLSX.utils.encode_cell({r:1,c:i}),sHeader));
   gestHeaders.forEach((_,i)=>styleCell(ws2,XLSX.utils.encode_cell({r:1,c:nOrig+i}),{...sHeader,fill:{fgColor:{rgb:'E2EFDA'}}}));
-
   XLSX.utils.book_append_sheet(wb,ws2,'Datos diarios');
 
   // ── HOJA 3: Histórico ────────────────────────────────────────────
-  const ws3Data=[
-    ['Fecha y hora','Usuario','DNI','ID único','Nombre','Estado anterior','Estado nuevo','Notas'],
-    ...historico.slice(0,5000).map(h=>[new Date(h.created_at).toLocaleString('es-ES'),h.usuario,h.dni,h.tel||'',h.nombre,h.estado_anterior,h.estado_nuevo,h.notas])
-  ];
-  const ws3=XLSX.utils.aoa_to_sheet(ws3Data);
-  ws3['!cols']=[{wch:18},{wch:14},{wch:12},{wch:13},{wch:28},{wch:22},{wch:22},{wch:36}];
+  const ws3Data=[['Fecha y hora','Usuario','DNI','ID único','Nombre','Estado anterior','Estado nuevo','Notas'],...historico.slice(0,5000).map(h=>[new Date(h.created_at).toLocaleString('es-ES'),h.usuario,h.dni,h.tel||'',h.nombre,h.estado_anterior,h.estado_nuevo,h.notas])];
+  const ws3=XLSX.utils.aoa_to_sheet(ws3Data);ws3['!cols']=[{wch:18},{wch:14},{wch:12},{wch:13},{wch:28},{wch:22},{wch:22},{wch:36}];
   XLSX.utils.book_append_sheet(wb,ws3,'Histórico');
-
-  XLSX.writeFile(wb,'informe_'+today()+'.xlsx',{cellStyles:true});
-  showToast('✓ Excel exportado (3 hojas)');
+  XLSX.writeFile(wb,'informe_'+today()+'.xlsx',{cellStyles:true});showToast('✓ Excel exportado (3 hojas)');
 }
 
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
